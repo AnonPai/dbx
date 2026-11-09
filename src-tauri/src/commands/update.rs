@@ -17,11 +17,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Update, UpdaterBuilder, UpdaterExt};
 
-const OFFICIAL_UPDATE_ENDPOINTS: [&str; 2] = [
-    "https://dl.dbxio.com/releases/stable/latest.json",
-    "https://github.com/t8y2/dbx/releases/latest/download/latest.json",
-];
-const BETA_UPDATE_ENDPOINTS: [&str; 1] = ["https://dl.dbxio.com/releases/beta/latest.json"];
+const OFFICIAL_UPDATE_ENDPOINTS: [&str; 1] = [dbx_core::update::APP_UPDATE_ENDPOINT];
 #[cfg(test)]
 const R2_LATEST_RELEASE_DOWNLOAD_PREFIX: &str = "https://dl.dbxio.com/releases/latest/";
 const R2_STABLE_RELEASE_DOWNLOAD_PREFIX: &str = "https://dl.dbxio.com/releases/stable/latest/";
@@ -249,25 +245,9 @@ impl UpdateDownloadSource {
         }
     }
 
-    fn endpoints(&self, latest_version: Option<&str>, channel: UpdateChannel) -> Result<Vec<String>, String> {
-        let channel_endpoints: Vec<String> = match channel {
-            UpdateChannel::Stable => OFFICIAL_UPDATE_ENDPOINTS.iter().map(|endpoint| (*endpoint).to_string()).collect(),
-            UpdateChannel::Beta => BETA_UPDATE_ENDPOINTS.iter().map(|endpoint| (*endpoint).to_string()).collect(),
-        };
-        match self {
-            Self::Official => Ok(channel_endpoints),
-            Self::Cnb => {
-                if matches!(channel, UpdateChannel::Beta) {
-                    return Ok(channel_endpoints);
-                }
-                let version =
-                    latest_version.ok_or_else(|| "Latest version is required for CNB updates.".to_string())?;
-                Ok(vec![
-                    format!("{CNB_RELEASE_DOWNLOAD_PREFIX}{}/latest.json", tag_version(version)),
-                    channel_endpoints[0].clone(),
-                ])
-            }
-        }
+    fn endpoints(&self, _latest_version: Option<&str>, _channel: UpdateChannel) -> Result<Vec<String>, String> {
+        // 兼容已保存的下载源和渠道设置，桌面应用统一读取自托管清单。
+        Ok(OFFICIAL_UPDATE_ENDPOINTS.iter().map(|endpoint| (*endpoint).to_string()).collect())
     }
 
     fn rewrite_download_url(&self, url: &str) -> Result<Option<String>, String> {
@@ -329,67 +309,11 @@ impl UpdateDownloadSource {
     fn installer_asset_candidates(
         &self,
         download_url: &str,
-        latest_version: Option<&str>,
-        channel: UpdateChannel,
-        release_tag: Option<&str>,
+        _latest_version: Option<&str>,
+        _channel: UpdateChannel,
+        _release_tag: Option<&str>,
     ) -> Vec<String> {
-        let download_path = download_url.split_once('?').map(|(url, _)| url).unwrap_or(download_url);
-        let download_path = download_path.split_once('#').map(|(url, _)| url).unwrap_or(download_path);
-        let filename = download_path.rsplit('/').next().filter(|name| !name.is_empty()).unwrap_or("");
-        let r2_prefix = match channel {
-            UpdateChannel::Stable => R2_STABLE_RELEASE_DOWNLOAD_PREFIX,
-            UpdateChannel::Beta => R2_BETA_RELEASE_DOWNLOAD_PREFIX,
-        };
-
-        let tag = release_tag
-            .map(str::trim)
-            .filter(|tag| !tag.is_empty())
-            .map(ToOwned::to_owned)
-            .or_else(|| latest_version.map(tag_version))
-            .unwrap_or_else(|| {
-                if let Some(pos) = download_url.find("/releases/download/") {
-                    let rest = &download_url[pos + "/releases/download/".len()..];
-                    if let Some(tag_end) = rest.find('/') {
-                        return rest[..tag_end].to_string();
-                    }
-                }
-                "".to_string()
-            });
-
-        let raw_candidates = match self {
-            Self::Official => {
-                let mut urls = Vec::new();
-                if !filename.is_empty() {
-                    urls.push(format!("{r2_prefix}{filename}"));
-                }
-                urls.push(download_url.to_string());
-                if !tag.is_empty() && !filename.is_empty() {
-                    urls.push(format!("{GITHUB_RELEASE_DOWNLOAD_PREFIX}{tag}/{filename}"));
-                }
-                urls
-            }
-            Self::Cnb => {
-                let mut urls = Vec::new();
-                if let Ok(Some(rewritten)) = self.rewrite_download_url(download_url) {
-                    urls.push(rewritten);
-                } else if !tag.is_empty() && !filename.is_empty() {
-                    urls.push(format!("{CNB_RELEASE_DOWNLOAD_PREFIX}{tag}/{filename}"));
-                }
-                if !filename.is_empty() {
-                    urls.push(format!("{r2_prefix}{filename}"));
-                }
-                urls.push(download_url.to_string());
-                urls
-            }
-        };
-
-        let mut unique = Vec::new();
-        for url in raw_candidates {
-            if !unique.contains(&url) {
-                unique.push(url);
-            }
-        }
-        unique
+        vec![download_url.to_string()]
     }
 }
 
@@ -418,14 +342,13 @@ pub async fn check_for_updates(
     source: Option<dbx_core::DownloadSource>,
     channel: Option<UpdateChannel>,
 ) -> Result<UpdateInfo, String> {
-    let locale = locale.unwrap_or_else(|| "zh-CN".to_string());
-    let channel = channel.unwrap_or_default();
-    let release =
-        dbx_core::update::fetch_latest_release_for_channel(&locale, source.unwrap_or_default(), channel).await?;
+    let _ = (locale, source, channel);
+    let release = dbx_core::update::fetch_app_release().await?;
     let current_version = env!("CARGO_PKG_VERSION");
     let mut info = dbx_core::update::build_update_info(release, current_version);
     info.portable_mode = crate::data_dir::is_portable_mode();
-    info.manual_update_only = requires_manual_update(IS_WINDOWS_7_TARGET);
+    info.manual_update_only = requires_manual_update(IS_WINDOWS_7_TARGET) || info.portable_mode;
+    info.release_url = dbx_core::update::APP_RELEASE_URL.to_string();
     Ok(info)
 }
 
@@ -484,12 +407,15 @@ fn validate_cache_target(record: &CacheRecord, portable_mode: bool, package_kind
 
 fn restore_cached(app: &AppHandle) -> Result<Option<CachedUpdate>, String> {
     let root = update_cache::root(app)?;
-    if requires_manual_update(IS_WINDOWS_7_TARGET) {
+    if requires_manual_update(IS_WINDOWS_7_TARGET) || crate::data_dir::is_portable_mode() {
         update_cache::discard(&root)?;
         return Ok(None);
     }
     let restored = (|| {
         let Some((record, bytes)) = update_cache::read(&root)? else { return Ok(None) };
+        if record.info.release_url != dbx_core::update::APP_RELEASE_URL {
+            return Err("Cached update belongs to a different update source.".into());
+        }
         validate_cache_target(&record, crate::data_dir::is_portable_mode(), &package_kind(app)?)?;
         let version =
             update_portable::validate_requested_portable_version(&record.info.version, env!("CARGO_PKG_VERSION"))?;
@@ -569,6 +495,12 @@ pub async fn download_update(
     release_tag: Option<String>,
 ) -> Result<DownloadedUpdate, String> {
     let portable_mode = crate::data_dir::is_portable_mode();
+    if portable_mode {
+        return Err(
+            "This update source provides Windows x64 installers. Install DBX-setup.exe to enable automatic updates."
+                .into(),
+        );
+    }
     if requires_manual_update(IS_WINDOWS_7_TARGET) {
         return Err("Windows 7 builds must be updated with the dedicated Windows 7 offline installer.".to_string());
     }
@@ -609,7 +541,7 @@ pub async fn download_update(
             let notes = update.body.clone().unwrap_or_default();
             (ReadyUpdate::Installer { update: Box::new(update), bytes }, manifest, None, notes)
         };
-        let release_url = format!("https://github.com/t8y2/dbx/releases/tag/{release_tag}");
+        let release_url = dbx_core::update::APP_RELEASE_URL.to_string();
         let info = DownloadedUpdate {
             cache_id: uuid::Uuid::new_v4().to_string(),
             version: version.to_string(),
@@ -1191,10 +1123,7 @@ mod tests {
     #[test]
     fn builds_cnb_update_endpoint_for_tag() {
         let endpoints = UpdateDownloadSource::Cnb.endpoints(Some("0.5.39"), UpdateChannel::Stable).unwrap();
-        assert_eq!(
-            endpoints,
-            vec![format!("{CNB_RELEASE_DOWNLOAD_PREFIX}v0.5.39/latest.json"), OFFICIAL_UPDATE_ENDPOINTS[0].to_string()]
-        );
+        assert_eq!(endpoints, OFFICIAL_UPDATE_ENDPOINTS);
     }
 
     #[test]
@@ -1259,10 +1188,7 @@ mod tests {
             UpdateChannel::Stable,
             None,
         );
-        assert_eq!(candidates.len(), 3);
-        assert_eq!(candidates[0], "https://cnb.cool/dbxio.com/dbx/-/releases/download/v0.5.64/DBX_0.5.64_aarch64.dmg");
-        assert_eq!(candidates[1], format!("{R2_STABLE_RELEASE_DOWNLOAD_PREFIX}DBX_0.5.64_aarch64.dmg"));
-        assert_eq!(candidates[2], "https://github.com/t8y2/dbx/releases/download/v0.5.64/DBX_0.5.64_aarch64.dmg");
+        assert_eq!(candidates, vec!["https://github.com/t8y2/dbx/releases/download/v0.5.64/DBX_0.5.64_aarch64.dmg"]);
     }
 
     #[test]
@@ -1273,10 +1199,7 @@ mod tests {
             UpdateChannel::Stable,
             None,
         );
-        assert_eq!(candidates.len(), 2);
-        assert_eq!(candidates[0], format!("{R2_STABLE_RELEASE_DOWNLOAD_PREFIX}DBX_0.5.64_aarch64.dmg"));
-        assert_eq!(candidates[1], "https://github.com/t8y2/dbx/releases/download/v0.5.64/DBX_0.5.64_aarch64.dmg");
-        assert!(!candidates.iter().any(|url| url.contains("cnb.cool")));
+        assert_eq!(candidates, vec!["https://github.com/t8y2/dbx/releases/download/v0.5.64/DBX_0.5.64_aarch64.dmg"]);
     }
 
     #[test]
@@ -1287,16 +1210,7 @@ mod tests {
             UpdateChannel::Beta,
             Some("v0.6.60-beta.20261028.1"),
         );
-        assert_eq!(
-            candidates[0],
-            "https://cnb.cool/dbxio.com/dbx/-/releases/download/v0.6.60-beta.20261028.1/DBX_0.6.60_x64-setup.exe"
-        );
-        assert_eq!(candidates[1], format!("{R2_BETA_RELEASE_DOWNLOAD_PREFIX}DBX_0.6.60_x64-setup.exe"));
-        assert_eq!(
-            candidates[2],
-            "https://dl.dbxio.com/releases/beta/v0.6.60-beta.20261028.1/DBX_0.6.60_x64-setup.exe?v=v0.6.60-beta.20261028.1"
-        );
-        assert!(!candidates.iter().any(|url| url.contains("releases/download/v0.6.60/")));
+        assert_eq!(candidates, vec!["https://dl.dbxio.com/releases/beta/v0.6.60-beta.20261028.1/DBX_0.6.60_x64-setup.exe?v=v0.6.60-beta.20261028.1"]);
     }
 
     #[test]

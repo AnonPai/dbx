@@ -48,6 +48,7 @@
     "test:watch": "vitest",
     "preview": "vite preview --config apps/desktop/vite.config.ts",
     "tauri": "tauri",
+    "package:windows": "node scripts/package-windows.mjs",
     "prepare": "husky"
   },
   "dependencies": {

@@ -8822,6 +8822,7 @@ fn native_postgres_url_config(config: &ConnectionConfig) -> Option<ConnectionCon
 }
 
 fn validate_connection_url_params(config: &ConnectionConfig) -> Result<(), String> {
+    config.validate_supported_database()?;
     db::mysql::data_charset_for_config(config)?;
     if matches!(config.db_type, DatabaseType::Doris | DatabaseType::StarRocks | DatabaseType::ManticoreSearch)
         && db::mysql::data_charset_from_params(config.url_params.as_deref().unwrap_or(""))?.is_some()

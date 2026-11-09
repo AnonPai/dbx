@@ -2,6 +2,15 @@ pub use dbx_platform::version::{is_newer_version, normalize_version, parse_versi
 
 use serde::{Deserialize, Serialize};
 
+pub const APP_UPDATE_ENDPOINT: &str = "https://raw.githubusercontent.com/AnonPai/dbx/main/latest.json";
+pub const APP_RELEASE_URL: &str = "https://github.com/AnonPai/dbx/tree/main";
+
+pub async fn fetch_app_release() -> Result<TauriRelease, String> {
+    let client = build_update_http_client()?;
+    let response = fetch_first_available(&client, &[APP_UPDATE_ENDPOINT.to_string()]).await?;
+    response.json().await.map_err(|error| format!("Failed to parse update response: {error}"))
+}
+
 const LATEST_JSON_GITHUB_PATH: &str = "https://github.com/t8y2/dbx/releases/latest/download/latest.json";
 const LATEST_JSON_R2_PATH: &str = "releases/latest/latest.json";
 const LATEST_JSON_STABLE_R2_PATH: &str = "releases/stable/latest.json";

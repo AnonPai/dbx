@@ -258,10 +258,8 @@ import {
   isRegisteredJdbcProductRuntimeInstallError,
   jdbcProductDriverProfiles,
   jdbcProductIconTypes,
-  jdbcProductPickerOptions,
   jdbcProductProfileDefinition,
   jdbcProductProfileForConfig,
-  jdbcProductProfileIdsForCategory,
 } from "@/lib/database/jdbcProductProfiles";
 
 type DbOption = Omit<ConnectionPickerOption, "category"> & { category?: DbCategoryKey; plugin?: boolean; pluginId?: string; pluginIcon?: string };
@@ -454,14 +452,14 @@ function initialConfigTab(): ConfigTab {
 const defaultForm = (): ConnectionForm => ({
   name: "",
   note: "",
-  db_type: "mysql",
-  driver_profile: "mysql",
-  driver_label: "MySQL",
+  db_type: "postgres",
+  driver_profile: "postgres",
+  driver_label: "PostgreSQL",
   url_params: "",
   agent_java_options: [],
   host: "127.0.0.1",
-  port: 3306,
-  username: "root",
+  port: 5432,
+  username: "postgres",
   password: "",
   database: undefined,
   color: "",
@@ -940,7 +938,7 @@ const idleDisconnectKeepaliveWarning = computed(() => {
 
 const selectedTransportLayerId = ref<string | null>(null);
 const draggedTransportLayerId = ref<string | null>(null);
-const selectedType = ref("mysql");
+const selectedType = ref("postgres");
 const pluginRegistry = computed(() => createFrontendPluginRegistry(installedPlugins.value, appLocale.value));
 const pluginConnectionProviders = computed(() => pluginRegistry.value.listConnectionProviders());
 const selectedPluginProvider = computed(() => pluginProviderEntryForOption(selectedType.value));
@@ -3467,7 +3465,7 @@ watch(
       redisKeyTemplatesText.value = "";
       productionProtectionEnabled.value = false;
       selectedTransportLayerId.value = null;
-      selectedType.value = "mysql";
+      selectedType.value = "postgres";
       pluginFormValues.value = {};
       customDriverName.value = "";
       resetMqFields();
@@ -3895,15 +3893,7 @@ const dbCategoryMetadata: Array<{ key: DbCategoryKey; titleKey: string }> = [
   { key: "registry_config", titleKey: "connection.databaseCategoryRegistryConfig" },
 ];
 
-function jdbcProductCategory(profileId: string): ConnectionProfileCategory {
-  const category: DbCategoryKey | undefined = dbCategoryMetadata.find(({ key }) => jdbcProductProfileIdsForCategory(key).includes(profileId))?.key;
-  if (category !== "plugins" && category) return category;
-  throw new Error(`JDBC product profile ${profileId} has no connection picker category`);
-}
-
-// `influxdb3` is presented as a version option inside the InfluxDB card
-// (see the version <Select> below), not as a standalone picker entry.
-const dbOptions: DbOption[] = [...CONNECTION_PICKER_OPTIONS.filter((option) => option.value !== "influxdb3"), ...jdbcProductPickerOptions().map((option) => ({ ...option, category: jdbcProductCategory(option.value) }))];
+const dbOptions: DbOption[] = CONNECTION_PICKER_OPTIONS.filter((option) => ["postgres", "clickhouse", "redis"].includes(option.value));
 
 const dbCategoryDefinitions = dbCategoryMetadata.map((category) => ({
   ...category,
@@ -3924,17 +3914,8 @@ const dbCategories = computed<DbCategory[]>(() => {
     title: t(category.titleKey),
     options: dbOptions.filter((option) => category.optionValues.includes(option.value) && !hiddenPickerOptionTypes.has(option.value)),
   }));
-  const pluginOptions: DbOption[] = pluginConnectionProviders.value.map((entry) => ({
-    value: pluginConnectionProviderOptionValue(entry.plugin.manifest.id, entry.contribution.id),
-    label: entry.contribution.label,
-    plugin: true,
-    pluginId: entry.plugin.manifest.id,
-    pluginIcon: pluginConnectionProviderIcon(entry),
-  }));
-  if (pluginOptions.length) {
-    categories.push({ key: "plugins", title: t("connection.databaseCategoryPlugins"), options: pluginOptions });
-  }
-  return categories;
+
+  return categories.filter((category) => category.options.length > 0);
 });
 
 function matchesDbOption(option: DbOption, keyword: string, categoryTitle = "") {
@@ -6489,7 +6470,7 @@ function resetForm(options: { preservePickerState?: boolean } = {}) {
   editRedisValuePreviewLimitKiB.value = settingsStore.editorSettings.redisValuePreviewLimitKiB;
   selectedTransportLayerId.value = null;
   draggedTransportLayerId.value = null;
-  selectedType.value = "mysql";
+  selectedType.value = "postgres";
   pluginFormValues.value = {};
   customDriverName.value = "";
   mongoUseUrl.value = false;

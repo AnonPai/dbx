@@ -1570,6 +1570,7 @@ async fn test_connection_with_info_inner(
     state: &Arc<AppState>,
     config: ConnectionConfig,
 ) -> Result<ConnectionTestResult, String> {
+    config.validate_supported_database()?;
     let (mut config, password) = prepare_rocketmq_runtime_config(config);
     if !dbx_core::connection::connection_secrets::is_rocketmq_connection(&config) {
         return test_connection_with_info_impl(state, config).await;
@@ -2241,6 +2242,7 @@ pub async fn connect_db(
     config: ConnectionConfig,
     client_attempt: Option<u64>,
 ) -> Result<String, String> {
+    config.validate_supported_database()?;
     let (config, password) = prepare_rocketmq_runtime_config(config);
     let app = state.inner().clone();
     let access = dbx_core::query::pl_debug::PlDebugAccess::desktop();

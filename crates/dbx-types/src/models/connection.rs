@@ -1104,6 +1104,13 @@ fn copy_u64(
 }
 
 impl ConnectionConfig {
+    pub fn validate_supported_database(&self) -> Result<(), String> {
+        if matches!(self.db_type, DatabaseType::Postgres | DatabaseType::ClickHouse | DatabaseType::Redis) {
+            return Ok(());
+        }
+        Err("This build supports PostgreSQL, ClickHouse and Redis only.".into())
+    }
+
     pub fn effective_transport_layers(&self) -> Vec<TransportLayerConfig> {
         self.transport_layers.iter().filter(|layer| layer.enabled()).cloned().collect()
     }

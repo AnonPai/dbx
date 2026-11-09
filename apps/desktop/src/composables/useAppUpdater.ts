@@ -132,15 +132,7 @@ export function tagVersion(version: string): string {
   return trimmed.startsWith("v") ? trimmed : `v${trimmed}`;
 }
 
-export function resolveUpdateReleaseUrl(info: api.UpdateInfo | null, source: unknown, fallbackUrl: string): string {
-  // Beta releases are mirrored to CNB only after promotion to stable.
-  if (info?.channel === "beta") return info.release_url || fallbackUrl;
-  const normalizedSource = normalizeUpdateDownloadSource(source);
-  if (normalizedSource === "cnb" && (info?.release_tag || info?.latest_version)) {
-    const tag = info.release_tag ?? tagVersion(info.latest_version);
-    return `https://cnb.cool/dbxio.com/dbx/-/releases/tag/${encodeURIComponent(tag)}`;
-  }
-  if (normalizedSource === "cnb") return "https://cnb.cool/dbxio.com/dbx/-/releases";
+export function resolveUpdateReleaseUrl(info: api.UpdateInfo | null, _source: unknown, fallbackUrl: string): string {
   return info?.release_url || fallbackUrl;
 }
 
@@ -204,7 +196,7 @@ export function useAppUpdater(options: UseAppUpdaterOptions = {}) {
   // `isUpdateIgnored` is only a version comparison, so it also matches once the user
   // has upgraded past the ignored version; require a release that is actually on offer.
   const ignoredReleaseVersion = computed(() => (updateDownloaded.value || updateReady.value || updateInfo.value?.update_available !== true || !isUpdateIgnored(updateInfo.value, settingsStore.editorSettings.ignoredUpdateVersion) ? "" : (settingsStore.editorSettings.ignoredUpdateVersion ?? "")));
-  const latestReleaseUrl = "https://github.com/t8y2/dbx/releases/latest";
+  const latestReleaseUrl = "https://github.com/AnonPai/dbx/tree/main";
   let generation = 0;
   let activeDownload: Promise<void> | undefined;
   let automaticDownload = false;

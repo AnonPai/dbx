@@ -1,0 +1,11 @@
+{
+  "version": "0.6.68",
+  "notes": "PostgreSQL / ClickHouse / Redis Windows x64 build",
+  "pub_date": "2026-11-09T09:36:46.241Z",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "https://raw.githubusercontent.com/AnonPai/dbx/main/DBX-setup.exe?v=0.6.68",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUENvNUpGMUI0blU2ZEZrekRlSCtxazhxaC94ckE4RHdzZ1MrejFaVk1hM1VGdXpKRzNvb1ExZTRjU29iRjg1VjBFMmJkbWorRkFhRmVRV0U4RlkvSHRNUUxVNGZNdndnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjE3MDA2CWZpbGU6REJYXzAuNi42OF94NjQtc2V0dXAuZXhlCnR1aDl2MGVZQzBsUXZqdnBNUWRvdDdFMVJZKytMY3IwUUpHbUxJWmpTMlQydzRjMDNMN29wWEpHZTMvSEZhc3BuWFI2dFVjK0hpV2ZNM0k1bXhUU0J3PT0K"
+    }
+  }
+}

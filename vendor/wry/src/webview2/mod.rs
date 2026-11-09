@@ -1308,6 +1308,17 @@ impl InnerWebView {
     dwrefdata: usize,
   ) -> LRESULT {
     match msg {
+      WM_SYSCOMMAND
+        if wparam.0 & 0xFFF0 == SC_KEYMENU as usize
+          && lparam.0 == 0
+          && GetWindowLongW(hwnd, GWL_STYLE) as u32 & (WS_CAPTION.0 | WS_CHILD.0) == 0
+          && GetMenu(hwnd).0.is_null() =>
+      {
+        // 无边框且无原生菜单时，Alt/F10 的空菜单激活没有可用目标。
+        // 在默认处理前消费消息，避开远程桌面场景下观察到的菜单处理阻塞。
+        return LRESULT(0);
+      }
+
       WM_SIZE => {
         if wparam.0 != SIZE_MINIMIZED as usize {
           let controller = dwrefdata as *mut ICoreWebView2Controller;
@@ -2163,6 +2174,124 @@ fn browser_executable_folder_from(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn parent_subclass_suppresses_only_bare_keymenu_on_frameless_windows() {
+    unsafe extern "system" fn window_proc(
+      hwnd: HWND,
+      msg: u32,
+      wparam: WPARAM,
+      lparam: LPARAM,
+    ) -> LRESULT {
+      // 用返回值确认消息是否到达原窗口过程，避免测试弹出菜单或关闭窗口。
+      if msg == WM_SYSCOMMAND {
+        return LRESULT(123);
+      }
+      DefWindowProcW(hwnd, msg, wparam, lparam)
+    }
+
+    unsafe extern "system" fn subclass_proc(
+      hwnd: HWND,
+      msg: u32,
+      wparam: WPARAM,
+      lparam: LPARAM,
+      id: usize,
+      data: usize,
+    ) -> LRESULT {
+      // 本测试只验证系统命令转发，无需创建 WebView2 控制器。
+      if msg == WM_SYSCOMMAND {
+        return InnerWebView::parent_subclass_proc(hwnd, msg, wparam, lparam, id, data);
+      }
+      DefSubclassProc(hwnd, msg, wparam, lparam)
+    }
+
+    struct TestWindow(HWND);
+    impl Drop for TestWindow {
+      fn drop(&mut self) {
+        unsafe {
+          let _ = DestroyWindow(self.0);
+        }
+      }
+    }
+
+    unsafe {
+      let instance = HINSTANCE(GetModuleHandleW(PCWSTR::null()).unwrap().0);
+      let class_name = w!("WryBareKeyMenuRegressionTest");
+      assert_ne!(
+        RegisterClassW(&WNDCLASSW {
+          lpfnWndProc: Some(window_proc),
+          hInstance: instance,
+          lpszClassName: class_name,
+          ..Default::default()
+        }),
+        0
+      );
+
+      for style in [WS_POPUP, WS_OVERLAPPEDWINDOW] {
+        let window = TestWindow(
+          CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            class_name,
+            w!(""),
+            style,
+            0,
+            0,
+            100,
+            100,
+            None,
+            None,
+            Some(instance),
+            None,
+          )
+          .unwrap(),
+        );
+        assert!(SetWindowSubclass(window.0, Some(subclass_proc), 1, 0).as_bool());
+        let expected = if style == WS_POPUP { 0 } else { 123 };
+        for flags in [0, 0x000F] {
+          assert_eq!(
+            SendMessageW(
+              window.0,
+              WM_SYSCOMMAND,
+              Some(WPARAM((SC_KEYMENU | flags) as usize)),
+              Some(LPARAM(0)),
+            ).0,
+            expected
+          );
+        }
+        for (command, parameter) in [
+          (SC_KEYMENU, 0x20), // Alt+Space
+          (SC_KEYMENU, 'f' as isize), // 原生菜单助记键
+          (SC_CLOSE, 0), // Alt+F4
+          (SC_MINIMIZE, 0),
+          (SC_MAXIMIZE, 0),
+          (SC_RESTORE, 0),
+        ] {
+          assert_eq!(
+            SendMessageW(
+              window.0,
+              WM_SYSCOMMAND,
+              Some(WPARAM(command as usize)),
+              Some(LPARAM(parameter)),
+            ).0,
+            123
+          );
+        }
+        // 窗口拥有原生菜单时继续交由原窗口过程处理，菜单由窗口销毁时释放。
+        let menu = CreateMenu().unwrap();
+        SetMenu(window.0, Some(menu)).unwrap();
+        assert_eq!(
+          SendMessageW(
+            window.0,
+            WM_SYSCOMMAND,
+            Some(WPARAM(SC_KEYMENU as usize)),
+            Some(LPARAM(0)),
+          ).0,
+          123
+        );
+      }
+      UnregisterClassW(class_name, Some(instance)).unwrap();
+    }
+  }
 
   #[test]
   fn win7_target_uses_fixed_runtime_on_windows_7() {

@@ -81,7 +81,7 @@ describe("older version release pages", () => {
   });
 
   it("uses the original beta tag on CNB after promotion to stable", () => {
-    expect(resolveUpdateReleaseUrl({ ...info, channel: "stable", release_tag: "v1.1.0-beta.20261028.1" }, "cnb", "fallback")).toBe("https://cnb.cool/dbxio.com/dbx/-/releases/tag/v1.1.0-beta.20261028.1");
+    expect(resolveUpdateReleaseUrl({ ...info, channel: "stable", release_tag: "v1.1.0-beta.20261028.1" }, "cnb", "fallback")).toBe(info.release_url);
   });
 
   it("maps a historical version to the matching GitHub release page", () => {
