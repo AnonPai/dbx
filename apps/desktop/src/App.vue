@@ -127,8 +127,8 @@ import { defaultSavedQueryFileName, externalSqlFileOpenErrorMessage, externalSql
 import type { ConnectionConfig, DatabaseType, ObjectBrowserFilter, ObjectSourceKind, QueryTab, TableInfoTab, TabOutputView, TreeNode } from "@/types/database";
 import { OPEN_PLUGIN_SETTINGS, type PluginCenterFocus } from "@/lib/plugins/pluginCenterNavigation";
 import { parsePluginInstallDeepLink } from "@/lib/plugins/pluginInstallDeepLink";
-import { createFrontendPluginRegistry } from "@/lib/plugins/frontendPlugin";
-import { parseConnectionDeepLink, parseConnectionDeepLinkUpdate, type ConnectionDeepLinkDraft, type ConnectionDeepLinkUpdate } from "@/lib/connection/connectionDeepLink";
+import { createFrontendPluginRegistry, pluginConnectionProviderDefaultPort } from "@/lib/plugins/frontendPlugin";
+import { parseConnectionDeepLink, parseConnectionDeepLinkUpdate, type ConnectionDeepLinkDraft, type ConnectionDeepLinkPluginProvider, type ConnectionDeepLinkUpdate } from "@/lib/connection/connectionDeepLink";
 import { resolveConnectionDeepLinkUpdate } from "@/lib/connection/connectionDeepLinkUpdate";
 import { parseAiConfigDeepLink, type AiConfigDeepLinkDraft } from "@/lib/ai/aiConfigDeepLink";
 import { activeDesktopAiRuns, blockingDesktopAiRunsForQuit } from "@/lib/ai/desktopAiRunRegistry";
@@ -235,7 +235,7 @@ import { detectAndFormatElasticsearchRequests } from "@/lib/elasticsearch/elasti
 import { detectDatabaseFileType } from "@/lib/database/databaseFileDetection";
 import { ensureJdbcxRuntimeDrivers } from "@/lib/database/jdbcxBuiltinDriver";
 import { ensureRegisteredJdbcProductRuntimeDrivers } from "@/lib/database/jdbcProductProfiles";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -397,7 +397,7 @@ function updateBlockingConfigState(): UpdateBlockingConfigState {
     ddlDialog: showQueryEditorDdlDialog.value,
     objectSourceDialog: showQueryEditorObjectSourceDialog.value,
     sqlParameterDialog: showSqlParameterDialog.value,
-    dangerDialog: showDangerDialog.value,
+    dangerDialog: showDangerDialog.value || showResultChangesDialog.value,
     multiDbExecuteDialog: showMultiDbExecuteDialog.value,
     transferDialog: dialogs.showTransferDialog.value,
     sqlFileDialog: dialogs.showSqlFileDialog.value,
@@ -1162,6 +1162,8 @@ function promptActiveConnectionSelection(tabId?: string) {
 
 const {
   dangerSql,
+  showResultChangesDialog,
+  onResultChangesConfirm,
   showDangerDialog,
   suppressDangerConfirm,
   tryExecute,
@@ -3161,6 +3163,27 @@ async function openPendingDbFiles() {
   }
 }
 
+/**
+ * 深链里 `type=` 可寻址的插件连接提供者（例如 SSH 插件注册的 `ssh`）。
+ *
+ * 插件在运行时注册，深链解析器又必须是纯函数，所以由这里把已安装提供者投影成
+ * 只读描述表传进去；插件加载失败只是让 `type=` 退回内置数据库类型，不影响打开弹窗。
+ */
+async function deepLinkPluginConnectionProviders(): Promise<ConnectionDeepLinkPluginProvider[]> {
+  try {
+    const registry = createFrontendPluginRegistry(await api.listPlugins(), appLocale.value);
+    return registry.listConnectionProviders().map((entry) => ({
+      pluginId: entry.plugin.manifest.id,
+      providerId: entry.contribution.id,
+      label: entry.contribution.label,
+      databaseType: entry.contribution.database_type,
+      defaultPort: pluginConnectionProviderDefaultPort(entry.contribution),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 async function openConnectionDeepLink(url: string) {
   await connectionStore.initFromDisk();
   try {
@@ -3176,7 +3199,7 @@ async function openConnectionDeepLink(url: string) {
       showConnectionDialog.value = true;
       return;
     }
-    const draft = parseConnectionDeepLink(url);
+    const draft = parseConnectionDeepLink(url, { pluginProviders: await deepLinkPluginConnectionProviders() });
     if (!draft) return;
     // Do not let another external URL replace an unconfirmed update draft.
     if (connectionDialogUpdate.value && showConnectionDialog.value) throw new Error("Close the current connection dialog before opening another connection link.");
@@ -4277,6 +4300,7 @@ async function handleQuickOpenSelect(item: any) {
         name: objectName,
         objectType,
         databaseType,
+        sqlFormatter: settingsStore.editorSettings.sqlFormatter,
         signature: item.signature,
       });
       const tabId = queryStore.createTab(item.connectionId, item.database, `Source - ${objectName}`, "query", undefined, undefined, undefined, { sourceView: true });
@@ -5912,6 +5936,26 @@ onUnmounted(() => {
           </div>
           <PluginShortcutBar v-if="!isDetachedWindowContext && !isZenMode && settingsStore.editorSettings.pluginShortcuts.enabled && settingsStore.editorSettings.pluginShortcuts.position.startsWith('right-')" :position="settingsStore.editorSettings.pluginShortcuts.position" />
         </div>
+
+        <Dialog
+          :open="showResultChangesDialog"
+          @update:open="
+            (open) => {
+              if (!open) onResultChangesConfirm(false);
+            }
+          "
+        >
+          <DialogContent class="sm:max-w-[420px]">
+            <DialogHeader>
+              <DialogTitle>{{ t("grid.queryPendingChangesTitle") }}</DialogTitle>
+              <DialogDescription>{{ t("grid.queryPendingChangesMessage") }}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" @click="onResultChangesConfirm(false)">{{ t("common.cancel") }}</Button>
+              <Button variant="destructive" @click="onResultChangesConfirm(true)">{{ t("grid.queryDiscardAndExecute") }}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <AppDialogs
           :show-connection-dialog="showConnectionDialog"
