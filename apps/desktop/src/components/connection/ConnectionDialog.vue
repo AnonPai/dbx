@@ -253,14 +253,7 @@ import {
   rememberJdbcProductConnectionFields,
   type JdbcProductConnectionFieldsByMode,
 } from "@/lib/database/jdbcProductProfile";
-import {
-  ensureRegisteredJdbcProductRuntimeDrivers,
-  isRegisteredJdbcProductRuntimeInstallError,
-  jdbcProductDriverProfiles,
-  jdbcProductIconTypes,
-  jdbcProductProfileDefinition,
-  jdbcProductProfileForConfig,
-} from "@/lib/database/jdbcProductProfiles";
+import { ensureRegisteredJdbcProductRuntimeDrivers, isRegisteredJdbcProductRuntimeInstallError, jdbcProductDriverProfiles, jdbcProductIconTypes, jdbcProductProfileDefinition, jdbcProductProfileForConfig } from "@/lib/database/jdbcProductProfiles";
 
 type DbOption = Omit<ConnectionPickerOption, "category"> & { category?: DbCategoryKey; plugin?: boolean; pluginId?: string; pluginIcon?: string };
 type DbCategoryKey = ConnectionProfileCategory | "plugins";
@@ -3938,7 +3931,7 @@ const dbCategoryMetadata: Array<{ key: DbCategoryKey; titleKey: string }> = [
   { key: "registry_config", titleKey: "connection.databaseCategoryRegistryConfig" },
 ];
 
-const dbOptions: DbOption[] = CONNECTION_PICKER_OPTIONS.filter((option) => ["postgres", "clickhouse", "redis"].includes(option.value));
+const dbOptions: DbOption[] = CONNECTION_PICKER_OPTIONS.filter((option) => ["mysql", "postgres", "clickhouse", "redis"].includes(option.value));
 
 const dbCategoryDefinitions = dbCategoryMetadata.map((category) => ({
   ...category,

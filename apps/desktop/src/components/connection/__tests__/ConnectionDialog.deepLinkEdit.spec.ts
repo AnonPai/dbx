@@ -296,6 +296,18 @@ describe.each([
   });
 });
 
+it("opens the MySQL connection form from the new connection picker", async () => {
+  await mountNewDialog();
+
+  const option = [...document.querySelectorAll<HTMLButtonElement>(".connection-db-picker-option")].find((button) => button.textContent?.trim() === "MySQL");
+  expect(option).toBeDefined();
+  option!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  await settle();
+
+  expect(document.querySelector<HTMLInputElement>('input[type="number"].col-span-1')?.value).toBe("3306");
+  expect([...document.querySelectorAll("input")].some((input) => input.value === "root")).toBe(true);
+});
+
 describe("ConnectionDialog deep-link edit confirmation", () => {
   it.each([false, true])("prefills Kafka brokers and only saves on confirmation (SASL: %s)", async (sasl) => {
     store.connect.mockResolvedValue(undefined);

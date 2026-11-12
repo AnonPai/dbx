@@ -1105,10 +1105,13 @@ fn copy_u64(
 
 impl ConnectionConfig {
     pub fn validate_supported_database(&self) -> Result<(), String> {
-        if matches!(self.db_type, DatabaseType::Postgres | DatabaseType::ClickHouse | DatabaseType::Redis) {
+        if matches!(
+            self.db_type,
+            DatabaseType::Mysql | DatabaseType::Postgres | DatabaseType::ClickHouse | DatabaseType::Redis
+        ) {
             return Ok(());
         }
-        Err("This build supports PostgreSQL, ClickHouse and Redis only.".into())
+        Err("This build supports MySQL, PostgreSQL, ClickHouse and Redis only.".into())
     }
 
     pub fn effective_transport_layers(&self) -> Vec<TransportLayerConfig> {
@@ -3275,6 +3278,15 @@ mod tests {
         DatabaseConnectionInfo, DatabaseType, IdentifierCase, ProductionBadgeScope, ProxyTunnelConfig, ProxyType,
         TransportLayerConfig,
     };
+
+    #[test]
+    fn validate_supported_database_accepts_mysql_and_rejects_unsupported_types() {
+        let mut config = mysql_config("root", "", None);
+        assert!(config.validate_supported_database().is_ok());
+
+        config.db_type = DatabaseType::Sqlite;
+        assert!(config.validate_supported_database().is_err());
+    }
 
     #[test]
     fn connection_response_derives_approved_hints_from_explicit_jdbc_url() {

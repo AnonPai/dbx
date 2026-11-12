@@ -59,7 +59,7 @@ async function main() {
   copyFileSync(installer, path.join(output, "DBX-setup.exe"));
   const manifest = {
     version,
-    notes: process.env.DBX_RELEASE_NOTES || "PostgreSQL / ClickHouse / Redis Windows x64 build",
+    notes: process.env.DBX_RELEASE_NOTES || "MySQL / PostgreSQL / ClickHouse / Redis Windows x64 build",
     pub_date: new Date().toISOString(),
     platforms: {
       "windows-x86_64": {
