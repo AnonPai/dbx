@@ -1,5 +1,5 @@
 {
-  "version": "0.6.70",
+  "version": "0.6.69+1",
   "notes": "修复 WS_CAPTION 导致 Alt/F10 菜单拦截失效的问题，并支持 +N 热修复版本比较。",
   "pub_date": "2026-11-13T03:32:35.373Z",
   "platforms": {
