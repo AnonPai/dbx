@@ -1,11 +1,11 @@
 {
-  "version": "0.6.69",
-  "notes": "MySQL / PostgreSQL / ClickHouse / Redis Windows x64 build",
-  "pub_date": "2026-11-12T07:43:44.062Z",
+  "version": "0.6.70",
+  "notes": "修复 WS_CAPTION 导致 Alt/F10 菜单拦截失效的问题，并支持 +N 热修复版本比较。",
+  "pub_date": "2026-11-13T03:32:35.373Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://raw.githubusercontent.com/AnonPai/dbx/main/DBX-setup.exe?v=0.6.69",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUENvNUpGMUI0blNRYWR0VEVRd01BZ05FSy9TR0VPUjVVcDN4Mit4VGh3VjNiamN6dFc5WldrUm9kNjNwMTZ0dWRHTHFTR1lkNlozQ1ZBN0ZGaG0yVDN0QWwybjVhT3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NDY5NDIzCWZpbGU6REJYXzAuNi42OV94NjQtc2V0dXAuZXhlCklGSi8vWldnckI5K3FnU21HckNhOVVxRHNTR0d3OUtVTDlvUEhpOEF4ckcxdjJsVExiYU95ZjIrMmx4ZGxXT2x5VXBkYXZvY2RGL0E5cUt0d3B5ZUR3PT0K"
+      "url": "https://raw.githubusercontent.com/AnonPai/dbx/main/DBX-setup.exe?v=0.6.69%2B1",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUENvNUpGMUI0bmJ1eE1DeTRyL2NzUVlqSDQzMXZOb1VEcDFTMG5iOWoyT2tpdDJmU3BkRHBDZWd3cWhDelJNMHFSSnBicXU5Um4yVjF0alVOR0ZHVVQzcGQ3ekdvRXdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTQwNzU1CWZpbGU6REJYXzAuNi42OSsxX3g2NC1zZXR1cC5leGUKVlFWdGQyQTg2UmV4YW1FdXpBalVTNXNEd2JmYUFmS2VhanozeTBaNTZ4L1lOZjhLY2IyWHBLTXA5a3lEVXpmak55VTRKT25IZ1UrTGY1QldVU0RHRFE9PQo="
     }
   }
 }

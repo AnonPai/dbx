@@ -1311,11 +1311,11 @@ impl InnerWebView {
       WM_SYSCOMMAND
         if wparam.0 & 0xFFF0 == SC_KEYMENU as usize
           && lparam.0 == 0
-          && GetWindowLongW(hwnd, GWL_STYLE) as u32 & (WS_CAPTION.0 | WS_CHILD.0) == 0
+          && GetWindowLongW(hwnd, GWL_STYLE) as u32 & WS_CHILD.0 == 0
           && GetMenu(hwnd).0.is_null() =>
       {
-        // 无边框且无原生菜单时，Alt/F10 的空菜单激活没有可用目标。
-        // 在默认处理前消费消息，避开远程桌面场景下观察到的菜单处理阻塞。
+        // Tao 的无边框主窗口仍可能保留 WS_CAPTION，不能用它判断是否拦截。
+        // 无原生菜单的顶层窗口直接消费 Alt/F10 的空菜单激活，避开默认菜单处理阻塞。
         return LRESULT(0);
       }
 
@@ -2176,7 +2176,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn parent_subclass_suppresses_only_bare_keymenu_on_frameless_windows() {
+  fn parent_subclass_suppresses_only_bare_keymenu_without_native_menu() {
     unsafe extern "system" fn window_proc(
       hwnd: HWND,
       msg: u32,
@@ -2246,7 +2246,7 @@ mod tests {
           .unwrap(),
         );
         assert!(SetWindowSubclass(window.0, Some(subclass_proc), 1, 0).as_bool());
-        let expected = if style == WS_POPUP { 0 } else { 123 };
+        // 同时覆盖无边框外观但保留 WS_CAPTION 的 Tao 主窗口。
         for flags in [0, 0x000F] {
           assert_eq!(
             SendMessageW(
@@ -2255,7 +2255,7 @@ mod tests {
               Some(WPARAM((SC_KEYMENU | flags) as usize)),
               Some(LPARAM(0)),
             ).0,
-            expected
+            0
           );
         }
         for (command, parameter) in [

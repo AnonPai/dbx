@@ -28,6 +28,7 @@ export function canDownloadAndInstallUpdate(info: api.UpdateInfo | null, isDeskt
 interface ParsedUpdateVersion {
   core: [string, string, string];
   prerelease: string[];
+  build: string[];
 }
 
 function normalizeUpdateVersion(version: string): string {
@@ -40,6 +41,7 @@ function parseUpdateVersion(version: string): ParsedUpdateVersion | null {
   return {
     core: [match[1], match[2], match[3]],
     prerelease: match[4]?.split(".") ?? [],
+    build: normalizeUpdateVersion(version).split("+")[1]?.split(".") ?? [],
   };
 }
 
@@ -54,7 +56,7 @@ function compareParsedUpdateVersions(left: ParsedUpdateVersion, right: ParsedUpd
     if (comparison !== 0) return comparison;
   }
   if (!left.prerelease.length || !right.prerelease.length) {
-    if (left.prerelease.length === right.prerelease.length) return 0;
+    if (left.prerelease.length === right.prerelease.length) return compareBuildVersions(left.build, right.build);
     return left.prerelease.length ? -1 : 1;
   }
   const length = Math.max(left.prerelease.length, right.prerelease.length);
@@ -66,6 +68,25 @@ function compareParsedUpdateVersions(left: ParsedUpdateVersion, right: ParsedUpd
     const leftNumeric = /^\d+$/.test(leftIdentifier);
     const rightNumeric = /^\d+$/.test(rightIdentifier);
     if (leftNumeric && rightNumeric) return compareNumericVersionIdentifier(leftIdentifier, rightIdentifier);
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftIdentifier < rightIdentifier ? -1 : 1;
+  }
+  return compareBuildVersions(left.build, right.build);
+}
+
+// 与 Rust semver::Version 的全序保持一致，将 +1、+2 作为本地修复序号。
+function compareBuildVersions(left: string[], right: string[]): number {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const leftIdentifier = left[index];
+    const rightIdentifier = right[index];
+    if (leftIdentifier === undefined || rightIdentifier === undefined) return leftIdentifier === undefined ? -1 : 1;
+    if (leftIdentifier === rightIdentifier) continue;
+    const leftNumeric = /^\d+$/.test(leftIdentifier);
+    const rightNumeric = /^\d+$/.test(rightIdentifier);
+    if (leftNumeric && rightNumeric) {
+      const comparison = compareNumericVersionIdentifier(leftIdentifier.replace(/^0+/, ""), rightIdentifier.replace(/^0+/, ""));
+      return comparison || leftIdentifier.length - rightIdentifier.length;
+    }
     if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
     return leftIdentifier < rightIdentifier ? -1 : 1;
   }
